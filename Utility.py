@@ -1,15 +1,31 @@
-from Import import *
+import os
 
-class_names = ['AMD', 'NON-AMD']
-class_names_label = {class_name:i for i, class_name in enumerate(class_names)}
+import cv2
+import matplotlib.pyplot as plt
+import numpy as np
+import tensorflow as tf
+from keras import layers
+from keras.layers import Activation, Conv2D
+from keras.preprocessing.image import Iterator
+from PIL import Image
+from scipy.ndimage import distance_transform_edt
+from skimage.color import rgb2gray
+from skimage.transform import resize
+from tensorflow.keras import layers
+from tensorflow.python.keras import backend
+from tensorflow.python.keras.layers import BatchNormalization
+
+class_names = ["AMD", "NON-AMD"]
+class_names_label = {class_name: i for i, class_name in enumerate(class_names)}
 nb_classes = len(class_names)
 
 IMAGE_SIZE = (512, 512)
 BATCH_NORM_DECAY = 0.9
 BATCH_NORM_EPSILON = 1e-5
 
+
 def batchnorm_with_activation(inputs, activation="relu", zero_gamma=False, name=""):
-    """Performs a batch normalization followed by an activation. """
+    """Performs a batch normalization followed by an activation."""
     bn_axis = 3 if backend.image_data_format() == "channels_last" else 1
     gamma_initializer = tf.zeros_initializer() if zero_gamma else tf.ones_initializer()
     nn = layers.BatchNormalization(
@@ -26,18 +42,42 @@ def batchnorm_with_activation(inputs, activation="relu", zero_gamma=False, name=
 
 def conv2d_no_bias(inputs, filters, kernel_size, strides=1, name=""):
     padding = "SAME" if strides == 1 else "VALID"
-    return layers.Conv2D(filters, kernel_size, strides=strides, padding=padding, use_bias=False, name=name + "conv")(inputs)
+    return layers.Conv2D(
+        filters,
+        kernel_size,
+        strides=strides,
+        padding=padding,
+        use_bias=False,
+        name=name + "conv",
+    )(inputs)
+
 
 def conv_block_simple(prevlayer, filters, prefix, strides=(1, 1)):
-    conv = Conv2D(filters, (3, 3), padding="same", kernel_initializer="he_normal", strides=strides, name=prefix + "_conv")(prevlayer)
+    conv = Conv2D(
+        filters,
+        (3, 3),
+        padding="same",
+        kernel_initializer="he_normal",
+        strides=strides,
+        name=prefix + "_conv",
+    )(prevlayer)
     conv = BatchNormalization(name=prefix + "_bn")(conv)
-    conv = Activation('relu', name=prefix + "_activation")(conv)
+    conv = Activation("relu", name=prefix + "_activation")(conv)
     return conv
 
+
 def conv_block_simple_no_bn(prevlayer, filters, prefix, strides=(1, 1)):
-    conv = Conv2D(filters, (3, 3), padding="same", kernel_initializer="he_normal", strides=strides, name=prefix + "_conv")(prevlayer)
-    conv = Activation('relu', name=prefix + "_activation")(conv)
+    conv = Conv2D(
+        filters,
+        (3, 3),
+        padding="same",
+        kernel_initializer="he_normal",
+        strides=strides,
+        name=prefix + "_conv",
+    )(prevlayer)
+    conv = Activation("relu", name=prefix + "_activation")(conv)
     return conv
+
 
 def create_dir(mypath):
     """Create a directory if it does not exist."""
@@ -50,7 +90,7 @@ def create_dir(mypath):
             raise
 
 
-def plot_loss(loss, label, filename, log_dir, acc=None, title='', ylim=None):
+def plot_loss(loss, label, filename, log_dir, acc=None, title="", ylim=None):
     """Plot a loss function and save it in a file."""
     loss = np.array(loss)
     plt.figure(figsize=(5, 4))
@@ -61,66 +101,88 @@ def plot_loss(loss, label, filename, log_dir, acc=None, title='', ylim=None):
         if acc is None:
             plt.ylim((0, 0.5))
         else:
-            plt.ylim((0,1.))
+            plt.ylim((0, 1.0))
 
     plt.title(title)
     plt.savefig(os.path.join(log_dir, filename))
     plt.clf()
-    plt.close('all')
+    plt.close("all")
 
-def resizefile(pathname,dirname,savepathname):
-    
+
+def resizefile(pathname, dirname, savepathname):
     for item in sorted(dirname):
-        if item == '.DS_Store':
-             continue
-        if os.path.isfile(pathname+item):
-        
-            img = Image.open(pathname+item)
-            x,y = img.size
+        if item == ".DS_Store":
+            continue
+        if os.path.isfile(pathname + item):
+            img = Image.open(pathname + item)
+            x, y = img.size
             print(x)
-            Ratio.append([x,y])
+            Ratio.append([x, y])
             f, e = os.path.splitext(item)
-            imResize = img.resize((512,512),Image.ANTIALIAS)
-            
-            imResize.save(savepathname + f + ' resized.jpg', 'JPEG')
+            imResize = img.resize((512, 512), Image.ANTIALIAS)
 
-def get_dist_maps(coords, shp=(512,512)):
+            imResize.save(savepathname + f + " resized.jpg", "JPEG")
+
+
+def get_dist_maps(coords, shp=(512, 512)):
     fx, fy = coords[0]
-    
 
     distance = np.ones(shp)
     distance[fy, fx] = 0
-    
+
     distance = distance_transform_edt(distance)
-    distance = distance[:,:,np.newaxis]
-    if shp != (512,512):
-        distance=resize(1 - distance / np.max(distance), (512,512,3)) ** 7
+    distance = distance[:, :, np.newaxis]
+    if shp != (512, 512):
+        distance = resize(1 - distance / np.max(distance), (512, 512, 3)) ** 7
     else:
         distance = (1 - distance / np.max(distance)) ** 7
     return distance
 
+
 """
 Iterator to load images from the datasets, and related functions.
 """
+
+
 def normalize_for_tanh(batch):
     """Make input image values lie between -1 and 1."""
-    tanh_batch = batch - np.max(batch)/2.
-    tanh_batch /= np.max(batch)/2.
+    tanh_batch = batch - np.max(batch) / 2.0
+    tanh_batch /= np.max(batch) / 2.0
     return tanh_batch
+
 
 class TwoImageIterator(Iterator):
     """Class to iterate A and B images at the same time, while applying desired
     transformations online."""
 
-    def __init__(self, directory, a_dir_name='A', b_dir_name=None, N=-1,
-                 batch_size=32, shuffle=True, seed=None, target_size=(512,512),
-                 cspace='rgb', nch_gdt=1,
-                 zscore=True, normalize_tanh=False,
-                 return_mode='normal', decay=5, dataset='idrid',
-                 rotation_range=0., height_shift_range=0., shear_range=0.,
-                 width_shift_range=0., zoom_range=0., fill_mode='constant',
-                 cval=0., horizontal_flip=False, vertical_flip=False, transform=None):
-
+    def __init__(
+        self,
+        directory,
+        a_dir_name="A",
+        b_dir_name=None,
+        N=-1,
+        batch_size=32,
+        shuffle=True,
+        seed=None,
+        target_size=(512, 512),
+        cspace="rgb",
+        nch_gdt=1,
+        zscore=True,
+        normalize_tanh=False,
+        return_mode="normal",
+        decay=5,
+        dataset="idrid",
+        rotation_range=0.0,
+        height_shift_range=0.0,
+        shear_range=0.0,
+        width_shift_range=0.0,
+        zoom_range=0.0,
+        fill_mode="constant",
+        cval=0.0,
+        horizontal_flip=False,
+        vertical_flip=False,
+        transform=None,
+    ):
         """
         Iterate through the image directoriy, apply transformations and return
         distance map calculated on the fly. If b_dir_name is not None, it will
@@ -160,24 +222,23 @@ class TwoImageIterator(Iterator):
             self.filenames = self.a_fnames[:N]
         self.N = len(self.a_fnames)
 
-        self.ch_order = 'tf'
+        self.ch_order = "tf"
 
         # Preprocess images
-        self.cspace = cspace #colorspace
+        self.cspace = cspace  # colorspace
 
         # Image shape
         self.target_size = target_size
         self.nch_gdt = nch_gdt
 
-        self.nch = len(self.cspace) # for example if grayscale
+        self.nch = len(self.cspace)  # for example if grayscale
 
-        #self.select_vessels = select_vessels
+        # self.select_vessels = select_vessels
 
         self.img_shape_a = self._get_img_shape(self.target_size, ch=self.nch)
         self.img_shape_b = self._get_img_shape(self.target_size, ch=self.nch_gdt)
-       
 
-        if self.ch_order == 'tf':
+        if self.ch_order == "tf":
             self.channel_index = 3
             self.row_index = 1
             self.col_index = 2
@@ -186,7 +247,7 @@ class TwoImageIterator(Iterator):
             self.row_index = 2
             self.col_index = 3
 
-        #Normalizations
+        # Normalizations
         self.normalize_tanh = normalize_tanh
         self.zscore = zscore
 
@@ -207,15 +268,15 @@ class TwoImageIterator(Iterator):
         self.transform = transform
 
         self.return_mode = return_mode
-        self.decay=decay
+        self.decay = decay
         self.dataset = dataset
 
-        super(TwoImageIterator, self).__init__(len(self.a_fnames), batch_size,
-                                               shuffle, seed)
+        super(TwoImageIterator, self).__init__(
+            len(self.a_fnames), batch_size, shuffle, seed
+        )
 
     def _get_img_shape(self, size, ch=3):
-
-        if self.ch_order == 'tf':
+        if self.ch_order == "tf":
             img_shape = size + (ch,)
         else:
             img_shape = (ch,) + size
@@ -229,35 +290,34 @@ class TwoImageIterator(Iterator):
         :return: aa: image
                  bb: ground truth
         """
-        #print(self.a_fnames[276])
-        #print(len(self.a_fnames),len(self.b_fnames))
-        
-        
+        # print(self.a_fnames[276])
+        # print(len(self.a_fnames),len(self.b_fnames))
+
         aa = cv2.imread(os.path.join(self.a_dir, self.a_fnames[idx]))
         aa = cv2.cvtColor(aa, cv2.COLOR_BGR2RGB)
         bb = cv2.imread(os.path.join(self.b_dir, self.b_fnames[idx]))
         bb = cv2.cvtColor(bb, cv2.COLOR_BGR2RGB)
-        #print(self.a_fnames[idx]+" "+self.b_fnames[idx])
-        
+        # print(self.a_fnames[idx]+" "+self.b_fnames[idx])
+
         if self.nch_gdt == 3:
             # fix for the case when the .png has an alpha channel
             if bb.shape[-1] == 4:
-                bb = bb[:,:,:3]
+                bb = bb[:, :, :3]
         elif self.nch_gdt == 1:
             # fix for the case when the .png has an alpha channel
-            
+
             if len(bb.shape) == 3:
                 bb = rgb2gray(bb)
-                bb = bb.reshape((512,512,1))
-                
-        #if self.select_vessels is True:
-            #bb = self.select_vessel_width(bb)
-        
+                bb = bb.reshape((512, 512, 1))
+
+        # if self.select_vessels is True:
+        # bb = self.select_vessel_width(bb)
+
         return aa, bb
 
     def _random_transform(self, a, b, is_batch=False):
         if is_batch is False:
-        # a and b are single images, so they don't have image number at index 0
+            # a and b are single images, so they don't have image number at index 0
             img_row_index = self.row_index - 1
             img_col_index = self.col_index - 1
             img_channel_index = self.channel_index - 1
@@ -270,22 +330,21 @@ class TwoImageIterator(Iterator):
 
         """
         if self.transform is not None:
-          a = self.transform(image=a)['image']
-          # b = self.transform(image=b)['image'] #no need to transform ground truth img
+            a = self.transform(image=a)["image"]
+            # b = self.transform(image=b)['image'] #no need to transform ground truth img
 
         return a, b
 
-    def get_dist_maps(self, coords, shp=(512,512)):
+    def get_dist_maps(self, coords, shp=(512, 512)):
         fx, fy = coords[0]
-    
 
         distance = np.ones(shp)
         distance[fy, fx] = 0
-    
+
         distance = distance_transform_edt(distance)
-        distance = distance[:,:,np.newaxis]
-        if shp != (512,512):
-            distance=resize(1 - distance / np.max(distance), (512,512,3)) ** 7
+        distance = distance[:, :, np.newaxis]
+        if shp != (512, 512):
+            distance = resize(1 - distance / np.max(distance), (512, 512, 3)) ** 7
         else:
             distance = (1 - distance / np.max(distance)) ** 7
         return distance
@@ -297,32 +356,31 @@ class TwoImageIterator(Iterator):
         with self.lock:
             index_array = next(self.index_generator)
         current_batch_size = len(index_array)
-            
+
         # Initialize the arrays according to the size of the output images
-       
+
         batch_a = np.zeros((current_batch_size,) + self.img_shape_a)
-        batch_b = np.zeros((current_batch_size,) + self.img_shape_b[:-1]
-                           + (self.nch_gdt,))
+        batch_b = np.zeros(
+            (current_batch_size,) + self.img_shape_b[:-1] + (self.nch_gdt,)
+        )
 
         files = []
         ind = []
 
-
         # Load images and apply transformations
         for i, j in enumerate(index_array):
-            
             if self.a_fnames[j] == ".DS_Store":
                 continue
-            
+
             im_id = self.a_fnames[j][:-4]
             a_img, b_img = self._load_img_pair(j)
 
-            #Transform
+            # Transform
             a_img, b_img = self._random_transform(a_img, b_img)
 
             # #NORMALIZE
             if self.zscore is True:
-                a_img = (a_img - a_img.mean()) / (a_img.std())        
+                a_img = (a_img - a_img.mean()) / (a_img.std())
 
             batch_a[i] = a_img
             batch_b[i] = b_img
@@ -334,27 +392,26 @@ class TwoImageIterator(Iterator):
             batch_a = normalize_for_tanh(batch_a)
             batch_b = normalize_for_tanh(batch_b)
 
-        if self.return_mode == 'normal':
+        if self.return_mode == "normal":
             return [batch_a, batch_b]
 
-        elif self.return_mode == 'fnames':
+        elif self.return_mode == "fnames":
             return [batch_a, batch_b, files]
 
-def check_EarlyStop(vloss, tr_loss, patience=5):
 
+def check_EarlyStop(vloss, tr_loss, patience=5):
     Eopt = np.min(vloss[:-1])
-    GL = ((vloss[-1] / Eopt) - 1)
-    Pk = (np.sum(tr_loss[-patience:]) / (
-            patience * (np.min(tr_loss[-patience:]))))
+    GL = (vloss[-1] / Eopt) - 1
+    Pk = np.sum(tr_loss[-patience:]) / (patience * (np.min(tr_loss[-patience:])))
     PQ = GL / Pk
 
     # return [PQ, GL, Pk]
-    if (GL > 0.):
+    if GL > 0.0:
         if PQ > 0.5:
-            return 'early_stop'
+            return "early_stop"
         elif Pk < 1.1:
-            return 'early_stop'
+            return "early_stop"
         else:
-            return 'pass'
+            return "pass"
     else:
-        return 'pass'
+        return "pass"
