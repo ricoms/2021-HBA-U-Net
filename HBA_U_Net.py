@@ -3,22 +3,20 @@ import math
 import tensorflow as tf
 from keras import backend as K
 from keras import layers
+from keras.applications import ResNet50
 from keras.layers import (Activation, Add, Conv2D, Dense, Dropout,
-                          GlobalAveragePooling2D, GlobalMaxPooling2D, Permute,
-                          Reshape, SpatialDropout2D, UpSampling2D, concatenate,
+                          GlobalAveragePooling2D, GlobalMaxPooling2D,
+                          MultiHeadAttention, Permute, Reshape,
+                          SpatialDropout2D, UpSampling2D, concatenate,
                           multiply)
 from keras.models import Model
-from tensorflow import keras
-from tensorflow.keras import layers
-from tensorflow.python.keras.layers import GlobalAveragePooling2D
 from tensorflow.python.ops import math_ops, special_math_ops
 
 from Utility import (batchnorm_with_activation, conv2d_no_bias,
                      conv_block_simple)
 
-tf.config.experimental_run_functions_eagerly(True)
 
-class HBA(keras.layers.MultiHeadAttention):
+class HBA(MultiHeadAttention):
     def __init__(self, num_heads=4, bottleneck_dimension=512, relative=True, **kwargs):
         self.key_dim = bottleneck_dimension // num_heads
         super(HBA, self).__init__(num_heads=num_heads, key_dim=self.key_dim, **kwargs)
@@ -250,7 +248,7 @@ def convert(
 ):
     add_layer_count = 0
     for idx, layer in enumerate(model.layers[::-1]):
-        if isinstance(layer, keras.layers.Add):
+        if isinstance(layer, Add):
             add_layer_count += 1
         if add_layer_count == num_layers + 1:
             break
@@ -262,7 +260,7 @@ def convert(
     if include_top:
         nn = layers.GlobalAveragePooling2D(name="avg_pool")(nn)
         nn = layers.Dense(classes, activation="softmax", name="predictions")(nn)
-    return keras.models.Model(inputs, nn)
+    return Model(inputs, nn)
 
 
 def Encoder(
@@ -275,7 +273,7 @@ def Encoder(
     activation="relu",
     **kwargs
 ):
-    mm = keras.applications.ResNet50(
+    mm = ResNet50(
         include_top=False,
         weights=None,
         input_tensor=input_tensor,
