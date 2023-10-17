@@ -4,6 +4,8 @@
 [![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/u-net-with-hierarchical-bottleneck-attention/fovea-detection-on-refuge)](https://paperswithcode.com/sota/fovea-detection-on-refuge?p=u-net-with-hierarchical-bottleneck-attention)
 [![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/u-net-with-hierarchical-bottleneck-attention/optic-disc-segmentation-on-adam)](https://paperswithcode.com/sota/optic-disc-segmentation-on-adam?p=u-net-with-hierarchical-bottleneck-attention)
 
+Personal note from @ricom, I gave up trying to replicate this experiment. The code quality is far from necessary to properly replicate results presented by the authors.
+
 # U-Net with Hierarchical Bottleneck Attention for Landmark Detection in Fundus Images of the Degenerated Retina
 
 Please cite as:
